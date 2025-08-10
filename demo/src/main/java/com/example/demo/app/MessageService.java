@@ -24,20 +24,21 @@ public class MessageService {
                 .uri("/api/sample")
                 .retrieve()
                 .bodyToFlux(String.class)
-                .filter(line -> line.startsWith("data: "))
+                .filter(line -> line != null && !line.trim().isEmpty())
                 .map(this::parseMessage)
-                .doOnNext(message -> log.info("수신된 메시지: {}", message))
-                .doOnError(error -> log.error("스트리밍 에러: ", error));
+                .doOnError(error -> log.error("스트리밍 에러: ", error))
+                .doOnComplete(() -> log.info("MessageService 스트리밍 완료"));
     }
 
     /**
-     * SSE 형식의 문자열을 MessageDTO로 파싱
+     * JSON 문자열을 MessageDTO로 파싱
      */
-    private MessageDTO parseMessage(String sseLine) {
+    private MessageDTO parseMessage(String jsonLine) {
         try {
-            // "data: " 제거하고 JSON 파싱
-            String jsonStr = sseLine.substring(6);
-            JsonNode jsonNode = objectMapper.readTree(jsonStr);
+            log.warn("jsonLine: {}", jsonLine); 
+
+            // WebClient가 이미 "data: " 접두사를 제거했으므로 직접 JSON 파싱
+            JsonNode jsonNode = objectMapper.readTree(jsonLine);
             
             MessageDTO message = new MessageDTO();
             message.setId(jsonNode.get("id").asInt());
@@ -46,11 +47,11 @@ public class MessageService {
             
             return message;
         } catch (Exception e) {
-            log.error("메시지 파싱 에러: {}", sseLine, e);
+            log.error("메시지 파싱 에러: {}", jsonLine, e);
             // 에러 발생시 기본 메시지 반환
             MessageDTO errorMessage = new MessageDTO();
             errorMessage.setId(-1);
-            errorMessage.setMessage("파싱 에러: " + sseLine);
+            errorMessage.setMessage("파싱 에러: " + jsonLine);
             errorMessage.setTimestamp("에러");
             return errorMessage;
         }
