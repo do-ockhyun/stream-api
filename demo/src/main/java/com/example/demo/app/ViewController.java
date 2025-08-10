@@ -12,4 +12,11 @@ public class ViewController {
         model.addAttribute("title", "스트리밍 데모");
         return "index";
     }
+
+    @GetMapping("/md")
+    public String markdown(Model model) {
+        model.addAttribute("title", "마크다운 스트리밍 데모");
+        return "md";
+    }
 }
+

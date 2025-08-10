@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>마크다운 스트리밍 데모</title>
+    <!-- Marked 라이브러리 추가 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background-color: #007bff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+        }
+        
+        .controls {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .start-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .start-btn:hover {
+            background-color: #218838;
+        }
+        
+        .start-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .stop-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        .stop-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .stop-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .markdown-container {
+            padding: 20px;
+            min-height: 400px;
+        }
+        
+        .markdown-content {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            min-height: 300px;
+            line-height: 1.6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        .markdown-content h1 {
+            color: #007bff;
+            font-size: 2em;
+            margin: 20px 0 15px 0;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        
+        .markdown-content h2 {
+            color: #007bff;
+            font-size: 1.5em;
+            margin: 15px 0 10px 0;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 3px;
+        }
+        
+        .markdown-content h3 {
+            color: #007bff;
+            font-size: 1.3em;
+            margin: 10px 0 5px 0;
+        }
+        
+        .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+            color: #007bff;
+            margin: 10px 0 5px 0;
+        }
+        
+        .markdown-content p {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+        
+        .markdown-content code {
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        .markdown-content pre {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .markdown-content pre code {
+            background-color: transparent;
+            padding: 0;
+            color: #333;
+        }
+        
+        .markdown-content blockquote {
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #6c757d;
+            font-style: italic;
+            background-color: #f8f9fa;
+            padding: 10px 15px;
+            border-radius: 0 5px 5px 0;
+        }
+        
+        .markdown-content ul, .markdown-content ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .markdown-content li {
+            margin: 5px 0;
+            line-height: 1.5;
+        }
+        
+        .markdown-content hr {
+            border: none;
+            border-top: 2px solid #dee2e6;
+            margin: 20px 0;
+        }
+        
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+        }
+        
+        .markdown-content th, .markdown-content td {
+            border: 1px solid #dee2e6;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .markdown-content th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        
+        .markdown-content strong {
+            font-weight: 600;
+        }
+        
+        .markdown-content em {
+            font-style: italic;
+        }
+        
+        .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background-color: #007bff;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>마크다운 스트리밍 데모</h1>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" class="start-btn" onclick="startStreaming()">스트리밍 시작</button>
+            <button id="stopBtn" class="stop-btn" onclick="stopStreaming()" disabled>스트리밍 중지</button>
+            <div id="status" class="status disconnected">연결되지 않음</div>
+        </div>
+        
+        <div class="markdown-container">
+            <div id="markdownContent" class="markdown-content">
+                스트리밍을 시작하려면 "스트리밍 시작" 버튼을 클릭하세요.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let markdownBuffer = '';
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+        const markdownContent = document.getElementById('markdownContent');
+
+        function startStreaming() {
+            // 기존 연결이 있다면 닫기
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            // UI 상태 업데이트
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            statusDiv.textContent = '연결 중...';
+            statusDiv.className = 'status disconnected';
+
+            // 마크다운 컨텐츠 초기화
+            markdownBuffer = '';
+            markdownContent.innerHTML = '<span class="typing-cursor"></span>';
+
+            // SSE 연결 설정
+            eventSource = new EventSource('/api/md');
+
+            eventSource.onopen = function(event) {
+                statusDiv.textContent = '연결됨 - 마크다운 스트리밍 중...';
+                statusDiv.className = 'status connected';
+            };
+
+            eventSource.onmessage = function(event) {
+                try {
+                    // 디버깅 로그
+                    console.log('1. 수신된 텍스트:', event.data);
+                    
+                    // 텍스트 라인 처리
+                    if (event.data && event.data.trim() !== '') {
+                        console.log('>> 2. 마크다운 라인:', event.data);
+                        // 라인에 개행 추가
+                        markdownBuffer += event.data + '\n';
+                        const renderedMarkdown = renderMarkdown(markdownBuffer);
+                        markdownContent.innerHTML = renderedMarkdown + '<span class="typing-cursor"></span>';
+                    } else {
+                        console.log('>> 3. 빈 데이터 건너뛰기');
+                    }
+                    
+                } catch (error) {
+                    console.error('텍스트 처리 에러:', error);
+                    console.error('원본 데이터:', event.data);
+                    markdownContent.innerHTML = `<div style="color: #dc3545; padding: 10px; background-color: #f8d7da; border-radius: 5px;">
+                        <strong>처리 에러:</strong> ${event.data}
+                    </div>`;
+                }
+            };
+
+            eventSource.onerror = function(error) {
+                console.error('SSE 에러:', error);
+                statusDiv.textContent = '연결 오류';
+                statusDiv.className = 'status disconnected';
+                stopStreaming();
+            };
+            
+            eventSource.onclose = function(event) {
+                // 스트리밍 완료 표시
+                const cursor = markdownContent.querySelector('.typing-cursor');
+                if (cursor) {
+                    cursor.remove();
+                }
+                markdownContent.innerHTML += '<br><hr><em style="color: #6c757d;">스트리밍이 완료되었습니다.</em>';
+            };
+        }
+
+        function stopStreaming() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            // UI 상태 업데이트
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusDiv.textContent = '연결되지 않음';
+            statusDiv.className = 'status disconnected';
+            
+            // 커서 제거
+            const cursor = markdownContent.querySelector('.typing-cursor');
+            if (cursor) {
+                cursor.remove();
+            }
+        }
+
+        // 마크다운 렌더링 함수 (Marked 라이브러리 사용)
+        function renderMarkdown(text, lineBreak) {
+            try {
+                const markefResult = marked.parse(text);
+                console.log('1. 수신된 마크다운 렌더링 결과:', markefResult);
+                return markefResult;
+            } catch (error) {
+                console.error('마크다운 파싱 에러:', error);
+                // 에러 발생 시 기본 텍스트 반환
+                return text.replace(/\n/g, '<br>');
+            }
+        }
+
+        // Marked 설정
+        marked.setOptions({
+            breaks: true,  // 줄바꿈을 <br>로 변환
+            gfm: true,     // GitHub Flavored Markdown 지원
+            headerIds: false,  // 헤더 ID 자동 생성 비활성화
+            mangle: false,     // 헤더 ID 난독화 비활성화
+            sanitize: false,   // HTML 태그 허용
+            smartLists: true,  // 스마트 리스트 지원
+            smartypants: true, // 스마트 문장부호 지원
+            xhtml: false       // XHTML 출력 비활성화
+        });
+
+        // 페이지 로드 시 초기 상태 설정
+        document.addEventListener('DOMContentLoaded', function() {
+            statusDiv.textContent = '연결되지 않음';
+            statusDiv.className = 'status disconnected';
+        });
+    </script>
+</body>
+</html>

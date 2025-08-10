@@ -40,19 +40,37 @@ public class MessageService {
     }
 
     /**
-     * Python API에서 마크다운 스트리밍 데이터를 받아와서 MessageDTO로 변환
+     * Python API에서 텍스트 기반 스트리밍 데이터를 받아와서 문자열로 반환 (마크다운용)
      */
-    public Flux<MessageDTO> getMarkdownStream() {
-        log.info("Python 서버 마크다운 엔드포인트 호출: /api/markdown");
+    public Flux<String> getTextStreamingMessages(String endpoint) {
+        log.info("Python 서버 텍스트 스트리밍 엔드포인트 호출: {}", endpoint);
         
         return webClient.get()
-                .uri("/api/markdown")
+                .uri(endpoint)
                 .retrieve()
                 .bodyToFlux(String.class)
-                .filter(line -> line != null)
-                .map(this::parseMarkdownChunk)
-                .doOnError(error -> log.error("마크다운 스트리밍 에러: ", error))
-                .doOnComplete(() -> log.info("MessageService 마크다운 스트리밍 완료"));
+                .filter(line -> line != null && !line.trim().isEmpty())
+                .map(this::extractTextFromSSE)
+                .filter(text -> text != null && !text.trim().isEmpty())
+                .doOnError(error -> log.error("텍스트 스트리밍 에러: ", error))
+                .doOnComplete(() -> log.info("MessageService 텍스트 스트리밍 완료 - 엔드포인트: {}", endpoint));
+    }
+
+    /**
+     * SSE 형식에서 텍스트 데이터 추출
+     */
+    private String extractTextFromSSE(String sseLine) {
+        log.warn("sseLine: {}", sseLine);
+        try {
+            // WebClient가 이미 "data: " 접두사를 제거했으므로 직접 반환
+            if (sseLine != null) {
+                return sseLine.trim();
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("SSE 텍스트 추출 에러: {}", sseLine, e);
+            return null;
+        }
     }
 
     /**
@@ -71,6 +89,14 @@ public class MessageService {
             if (jsonNode.has("number")) {
                 message.setId(jsonNode.get("number").asInt());
                 message.setMessage("숫자: " + jsonNode.get("number").asText());
+            } else if (jsonNode.has("chunk")) {
+                // markdown 엔드포인트의 경우 "chunk" 필드를 사용 (이전 버전 호환성)
+                message.setId(jsonNode.get("id").asInt());
+                message.setMessage(jsonNode.get("chunk").asText());
+            } else if (jsonNode.has("line")) {
+                // markdown 엔드포인트의 경우 "line" 필드를 사용 (새 버전)
+                message.setId(jsonNode.get("id").asInt());
+                message.setMessage(jsonNode.get("line").asText());
             } else {
                 // sample 엔드포인트의 경우 기존 필드 사용
                 message.setId(jsonNode.get("id").asInt());
@@ -86,33 +112,6 @@ public class MessageService {
             MessageDTO errorMessage = new MessageDTO();
             errorMessage.setId(-1);
             errorMessage.setMessage("파싱 에러: " + jsonLine);
-            errorMessage.setTimestamp("에러");
-            return errorMessage;
-        }
-    }
-
-    /**
-     * 마크다운 청크 JSON 문자열을 MessageDTO로 파싱
-     */
-    private MessageDTO parseMarkdownChunk(String jsonLine) {
-        try {
-            log.warn("마크다운 jsonLine: {}", jsonLine); 
-
-            // WebClient가 이미 "data: " 접두사를 제거했으므로 직접 JSON 파싱
-            JsonNode jsonNode = objectMapper.readTree(jsonLine);
-            
-            MessageDTO message = new MessageDTO();
-            message.setId(jsonNode.get("id").asInt());
-            message.setMessage(jsonNode.get("chunk").asText());
-            message.setTimestamp(jsonNode.get("timestamp").asText());
-            
-            return message;
-        } catch (Exception e) {
-            log.error("마크다운 청크 파싱 에러: {}", jsonLine, e);
-            // 에러 발생시 기본 메시지 반환
-            MessageDTO errorMessage = new MessageDTO();
-            errorMessage.setId(-1);
-            errorMessage.setMessage("마크다운 파싱 에러: " + jsonLine);
             errorMessage.setTimestamp("에러");
             return errorMessage;
         }

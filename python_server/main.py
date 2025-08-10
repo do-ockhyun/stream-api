@@ -72,87 +72,47 @@ async def stream_markdown() -> StreamingResponse:
     """
     
     async def generate_markdown() -> AsyncGenerator[str, None]:
-        # 샘플 마크다운 내용
-        markdown_content = """# 마크다운 스트리밍 데모
+        # README.md 파일 읽기
+        try:
+            with open('README.md', 'r', encoding='utf-8') as file:
+                markdown_content = file.read()
+        except FileNotFoundError:
+            markdown_content = """# README.md 파일을 찾을 수 없습니다
 
-이것은 **마크다운** 내용을 스트리밍으로 전송하는 데모입니다.
+README.md 파일이 현재 디렉토리에 있는지 확인해주세요.
 
-## 주요 기능
+## 파일 위치
+- Python 서버 실행 디렉토리: `python_server/`
+- README.md 파일 위치: `../README.md`
 
-- 실시간 텍스트 스트리밍
-- 랜덤한 텍스트 단위 분할
-- 마크다운 형식 지원
+## 해결 방법
+1. README.md 파일이 프로젝트 루트에 있는지 확인
+2. Python 서버를 프로젝트 루트에서 실행하거나
+3. 파일 경로를 수정해주세요."""
+        except Exception as e:
+            markdown_content = f"""# 파일 읽기 오류
 
-### 코드 예시
+README.md 파일을 읽는 중 오류가 발생했습니다.
 
-```python
-async def stream_markdown():
-    content = "마크다운 내용"
-    for chunk in content.split():
-        yield chunk
+## 오류 내용
+```
+{str(e)}
 ```
 
-## 장점
-
-1. **실시간성**: 즉시 전송
-2. **효율성**: 메모리 사용량 최적화
-3. **확장성**: 다양한 형식 지원
-
-> 인용문: 이것은 인용문입니다.
-
----
-
-스트리밍이 완료되었습니다!"""
+## 해결 방법
+1. 파일 권한 확인
+2. 파일 인코딩 확인 (UTF-8)
+3. 파일 경로 확인"""
         
-        # 마크다운 내용을 개행을 보존하면서 분할
-        import re
-        
-        # 개행을 특별한 토큰으로 임시 대체
-        NEWLINE_TOKEN = "___NEWLINE___"
-        markdown_with_tokens = markdown_content.replace('\n', NEWLINE_TOKEN)
-        
-        # 마크다운 내용을 더 간단하게 분할
-        chunks = []
-        
-        # 1. 개행 토큰을 기준으로 분할 (줄 단위)
-        lines = markdown_with_tokens.split(NEWLINE_TOKEN)
-        for line in lines:
-            if line.strip():
-                # 내용이 있는 줄은 문장 단위로 분할
-                sentences = re.split(r'([.!?]+)', line)
-                for i in range(0, len(sentences), 2):
-                    if i + 1 < len(sentences):
-                        chunks.append(sentences[i] + sentences[i + 1])
-                    else:
-                        chunks.append(sentences[i])
-            else:
-                # 빈 줄은 개행 토큰으로 추가
-                chunks.append(NEWLINE_TOKEN)
-        
-        # 모든 청크를 하나의 리스트로 합치기
-        all_chunks = chunks
-        # random.shuffle(all_chunks)  # 순서 섞기 비활성화
+        # 마크다운 내용을 라인별로 분할
+        lines = markdown_content.split('\n')
         
         # 스트리밍 전송
-        for i, chunk in enumerate(all_chunks):
-            if chunk.strip() or chunk == NEWLINE_TOKEN:  # 빈 문자열과 개행 토큰 포함
-                # 개행 토큰을 특별한 마커로 변환
-                actual_chunk = chunk.replace(NEWLINE_TOKEN, '___NEWLINE___')
-                
-                # 문제가 될 수 있는 문자들을 안전하게 처리
-                actual_chunk = actual_chunk.replace('"', '&quot;').replace('\\', '\\\\')
-                
-                # JSON 객체 생성
-                json_data = {
-                    "id": i + 1,
-                    "chunk": actual_chunk,
-                    "timestamp": time.strftime("%H:%M:%S")
-                }
-                
-                print(f"전송 청크 {i+1}: '{actual_chunk}'")  # 디버깅용
-                yield f'data: {json.dumps(json_data, ensure_ascii=False, separators=(",", ":"))}\n\n'
-                # 랜덤한 간격으로 전송 (0.3~1.2초)
-                await asyncio.sleep(random.uniform(0.3, 1.2))
+        for line in lines:
+            # 라인만 전송
+            yield f'data: {line}\n\n'
+            # 1초 간격으로 전송
+            await asyncio.sleep(1.0)
     
     return StreamingResponse(
         generate_markdown(),
