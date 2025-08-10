@@ -84,8 +84,38 @@ def test_numbers_api():
     except Exception as e:
         print(f"❌ 숫자 스트리밍 테스트 오류: {e}")
 
+def test_markdown_api():
+    """마크다운 스트리밍 API를 테스트하는 함수"""
+    
+    print()
+    print("=== /api/markdown 스트리밍 테스트 ===")
+    
+    try:
+        response = requests.get("http://localhost:8000/api/markdown", stream=True)
+        
+        if response.status_code == 200:
+            print("마크다운 스트리밍 시작...")
+            print("-" * 40)
+            
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        json_str = line_str[6:]
+                        try:
+                            data = json.loads(json_str)
+                            print(f"[{data['timestamp']}] ID {data['id']}: {data['chunk']}")
+                        except json.JSONDecodeError:
+                            print(f"JSON 파싱 오류: {json_str}")
+        else:
+            print(f"❌ HTTP 오류: {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ 마크다운 스트리밍 테스트 오류: {e}")
+
 if __name__ == "__main__":
     test_streaming_api()
     test_numbers_api()
+    test_markdown_api()
     print()
     print("테스트 완료!")
