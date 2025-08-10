@@ -20,14 +20,23 @@ public class MessageService {
      * Python API에서 스트리밍 데이터를 받아와서 MessageDTO로 변환
      */
     public Flux<MessageDTO> getStreamingMessages() {
+        return getStreamingMessages("/api/sample");
+    }
+
+    /**
+     * Python API에서 스트리밍 데이터를 받아와서 MessageDTO로 변환 (엔드포인트 지정)
+     */
+    public Flux<MessageDTO> getStreamingMessages(String endpoint) {
+        log.info("Python 서버 엔드포인트 호출: {}", endpoint);
+        
         return webClient.get()
-                .uri("/api/sample")
+                .uri(endpoint)
                 .retrieve()
                 .bodyToFlux(String.class)
                 .filter(line -> line != null && !line.trim().isEmpty())
                 .map(this::parseMessage)
                 .doOnError(error -> log.error("스트리밍 에러: ", error))
-                .doOnComplete(() -> log.info("MessageService 스트리밍 완료"));
+                .doOnComplete(() -> log.info("MessageService 스트리밍 완료 - 엔드포인트: {}", endpoint));
     }
 
     /**
@@ -41,8 +50,17 @@ public class MessageService {
             JsonNode jsonNode = objectMapper.readTree(jsonLine);
             
             MessageDTO message = new MessageDTO();
-            message.setId(jsonNode.get("id").asInt());
-            message.setMessage(jsonNode.get("message").asText());
+            
+            // numbers 엔드포인트의 경우 "number" 필드를 사용
+            if (jsonNode.has("number")) {
+                message.setId(jsonNode.get("number").asInt());
+                message.setMessage("숫자: " + jsonNode.get("number").asText());
+            } else {
+                // sample 엔드포인트의 경우 기존 필드 사용
+                message.setId(jsonNode.get("id").asInt());
+                message.setMessage(jsonNode.get("message").asText());
+            }
+            
             message.setTimestamp(jsonNode.get("timestamp").asText());
             
             return message;
