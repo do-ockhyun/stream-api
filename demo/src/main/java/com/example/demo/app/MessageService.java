@@ -40,6 +40,22 @@ public class MessageService {
     }
 
     /**
+     * Python API에서 마크다운 스트리밍 데이터를 받아와서 MessageDTO로 변환
+     */
+    public Flux<MessageDTO> getMarkdownStream() {
+        log.info("Python 서버 마크다운 엔드포인트 호출: /api/markdown");
+        
+        return webClient.get()
+                .uri("/api/markdown")
+                .retrieve()
+                .bodyToFlux(String.class)
+                .filter(line -> line != null)
+                .map(this::parseMarkdownChunk)
+                .doOnError(error -> log.error("마크다운 스트리밍 에러: ", error))
+                .doOnComplete(() -> log.info("MessageService 마크다운 스트리밍 완료"));
+    }
+
+    /**
      * JSON 문자열을 MessageDTO로 파싱
      */
     private MessageDTO parseMessage(String jsonLine) {
@@ -70,6 +86,33 @@ public class MessageService {
             MessageDTO errorMessage = new MessageDTO();
             errorMessage.setId(-1);
             errorMessage.setMessage("파싱 에러: " + jsonLine);
+            errorMessage.setTimestamp("에러");
+            return errorMessage;
+        }
+    }
+
+    /**
+     * 마크다운 청크 JSON 문자열을 MessageDTO로 파싱
+     */
+    private MessageDTO parseMarkdownChunk(String jsonLine) {
+        try {
+            log.warn("마크다운 jsonLine: {}", jsonLine); 
+
+            // WebClient가 이미 "data: " 접두사를 제거했으므로 직접 JSON 파싱
+            JsonNode jsonNode = objectMapper.readTree(jsonLine);
+            
+            MessageDTO message = new MessageDTO();
+            message.setId(jsonNode.get("id").asInt());
+            message.setMessage(jsonNode.get("chunk").asText());
+            message.setTimestamp(jsonNode.get("timestamp").asText());
+            
+            return message;
+        } catch (Exception e) {
+            log.error("마크다운 청크 파싱 에러: {}", jsonLine, e);
+            // 에러 발생시 기본 메시지 반환
+            MessageDTO errorMessage = new MessageDTO();
+            errorMessage.setId(-1);
+            errorMessage.setMessage("마크다운 파싱 에러: " + jsonLine);
             errorMessage.setTimestamp("에러");
             return errorMessage;
         }

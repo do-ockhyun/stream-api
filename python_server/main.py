@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 import asyncio
 import time
 import random
+import json
 from typing import AsyncGenerator
 
 app = FastAPI(title="Streaming API Server", description="텍스트 스트리밍을 위한 파이썬 API 서버")
@@ -101,49 +102,55 @@ async def stream_markdown():
 
 ---
 
-**스트리밍이 완료되었습니다!**"""
+스트리밍이 완료되었습니다!"""
         
-        # 마크다운 내용을 다양한 단위로 분할
-        # 문장, 단어, 줄바꿈 등을 기준으로 분할
+        # 마크다운 내용을 개행을 보존하면서 분할
         import re
         
-        # 마크다운 내용을 여러 가지 방법으로 분할
+        # 개행을 특별한 토큰으로 임시 대체
+        NEWLINE_TOKEN = "___NEWLINE___"
+        markdown_with_tokens = markdown_content.replace('\n', NEWLINE_TOKEN)
+        
+        # 마크다운 내용을 더 간단하게 분할
         chunks = []
         
-        # 1. 줄 단위로 분할
-        lines = markdown_content.split('\n')
+        # 1. 개행 토큰을 기준으로 분할 (줄 단위)
+        lines = markdown_with_tokens.split(NEWLINE_TOKEN)
         for line in lines:
             if line.strip():
-                chunks.append(line)
-        
-        # 2. 문장 단위로 분할 (줄 내에서)
-        sentence_chunks = []
-        for chunk in chunks:
-            sentences = re.split(r'([.!?]+)', chunk)
-            for i in range(0, len(sentences), 2):
-                if i + 1 < len(sentences):
-                    sentence_chunks.append(sentences[i] + sentences[i + 1])
-                else:
-                    sentence_chunks.append(sentences[i])
-        
-        # 3. 단어 단위로 분할 (짧은 문장의 경우)
-        word_chunks = []
-        for chunk in sentence_chunks:
-            if len(chunk) < 50:  # 짧은 문장은 단어 단위로
-                words = chunk.split()
-                for word in words:
-                    word_chunks.append(word)
+                # 내용이 있는 줄은 문장 단위로 분할
+                sentences = re.split(r'([.!?]+)', line)
+                for i in range(0, len(sentences), 2):
+                    if i + 1 < len(sentences):
+                        chunks.append(sentences[i] + sentences[i + 1])
+                    else:
+                        chunks.append(sentences[i])
             else:
-                word_chunks.append(chunk)
+                # 빈 줄은 개행 토큰으로 추가
+                chunks.append(NEWLINE_TOKEN)
         
-        # 모든 청크를 하나의 리스트로 합치고 섞기
-        all_chunks = word_chunks
-        random.shuffle(all_chunks)
+        # 모든 청크를 하나의 리스트로 합치기
+        all_chunks = chunks
+        # random.shuffle(all_chunks)  # 순서 섞기 비활성화
         
         # 스트리밍 전송
         for i, chunk in enumerate(all_chunks):
-            if chunk.strip():  # 빈 문자열 제외
-                yield f'data: {{"id": {i+1}, "chunk": "{chunk}", "timestamp": "{time.strftime("%H:%M:%S")}"}}\n\n'
+            if chunk.strip() or chunk == NEWLINE_TOKEN:  # 빈 문자열과 개행 토큰 포함
+                # 개행 토큰을 특별한 마커로 변환
+                actual_chunk = chunk.replace(NEWLINE_TOKEN, '___NEWLINE___')
+                
+                # 문제가 될 수 있는 문자들을 안전하게 처리
+                actual_chunk = actual_chunk.replace('"', '&quot;').replace('\\', '\\\\')
+                
+                # JSON 객체 생성
+                json_data = {
+                    "id": i + 1,
+                    "chunk": actual_chunk,
+                    "timestamp": time.strftime("%H:%M:%S")
+                }
+                
+                print(f"전송 청크 {i+1}: '{actual_chunk}'")  # 디버깅용
+                yield f'data: {json.dumps(json_data, ensure_ascii=False, separators=(",", ":"))}\n\n'
                 # 랜덤한 간격으로 전송 (0.3~1.2초)
                 await asyncio.sleep(random.uniform(0.3, 1.2))
     
